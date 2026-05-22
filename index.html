@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <title>Strava OAuth - Página de Callback</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 40px; color: #222; }
+    pre { background:#f4f4f4; padding:10px; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <h1>Autorização Strava</h1>
+  <p>Se esta página foi aberta após autorizar, a query string com o código está abaixo. Copie toda a URL da barra de endereços e cole no Colab.</p>
+  <p><strong>URL completa:</strong></p>
+  <pre id="fullurl">Carregando...</pre>
+  <p><strong>Parâmetros:</strong></p>
+  <pre id="params">Carregando...</pre>
+
+  <script>
+    // mostra URL completa e parâmetros para facilitar copiar/colar no Colab
+    document.getElementById('fullurl').textContent = window.location.href;
+    document.getElementById('params').textContent = window.location.search || '(sem parâmetros)';
+  </script>
+</body>
+</html>
