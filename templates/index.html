@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{ title if title else "Painel" }}</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#05120d; --panel:#072015; --muted:#9fcfa1; --accent:#4ade80; --txt:#dffbe9;
+  --font:'Source Sans 3',sans-serif; --mono:'Source Code Pro',monospace;
+  --select-bg:#000; --select-color:#fff; --select-option-active:#3b82f6;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--txt);overflow:hidden}
+body{display:flex;flex-direction:column}
+
+header{height:56px;display:flex;align-items:center;padding:0 18px;background:linear-gradient(90deg,#04200f 0%,#05120d 100%);border-bottom:1px solid rgba(255,255,255,0.03)}
+.h-left{display:flex;align-items:center;gap:12px}
+.h-left .logo{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:linear-gradient(180deg,#0b2e18,#06321b);box-shadow:0 2px 6px rgba(0,0,0,0.4)}
+.h-left h1{font-size:15px;color:#aef0c3}
+.h-left p{font-size:11px;color:var(--muted)}
+.h-kpis{margin-left:auto;display:flex;gap:20px}
+.h-kpi{text-align:right}
+.h-kpi .v{font-family:var(--mono);font-size:16px;color:var(--accent);font-weight:700}
+.h-kpi .l{font-size:10px;color:var(--muted);text-transform:uppercase}
+
+#main{display:flex;flex:1;overflow:hidden}
+#map-wrap{flex:1;position:relative;background:#07120b}
+#map{height:100%;width:100%}
+#panel{width:420px;background:rgba(6,36,18,0.95);border-left:1px solid rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:auto;padding-top:8px}
+
+#filter{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:900;min-width:920px;background:rgba(2,6,3,0.92);border-radius:14px;padding:10px 12px;border:1px solid rgba(255,255,255,0.03);display:flex;gap:12px;align-items:center}
+.flt-label{font-size:11px;color:var(--muted);font-weight:700}
+.flt-select{
+  background:var(--select-bg);
+  color:var(--select-color);
+  padding:8px 10px;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,0.04);
+  font-weight:700;
+  outline:none;
+  min-width:160px;
+}
+.flt-select option{ background:var(--select-bg); color:var(--select-color); }
+.flt-select option:checked{ color:var(--select-option-active); background:var(--select-bg); }
+.flt-select.loading { opacity: 0.5; pointer-events: none; }
+
+/* Botões de mapa na VERTICAL */
+#basemap{
+  position:absolute;
+  top:14px;
+  right:18px;
+  z-index:900;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.bm{
+  background:rgba(3,8,5,0.9);
+  border-radius:8px;
+  padding:8px 12px;
+  border:1px solid rgba(255,255,255,0.03);
+  cursor:pointer;
+  color:var(--muted);
+  font-weight:800;
+  text-align:center;
+  font-size:12px;
+  user-select:none;
+}
+.bm.active{background:rgba(74,222,128,0.06);color:var(--accent)}
+
+#legend{position:absolute;bottom:18px;right:18px;z-index:900;background:rgba(3,8,5,0.9);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);min-width:180px}
+.lh{font-size:11px;color:var(--muted);font-weight:800;margin-bottom:8px}
+.leg{display:flex;gap:10px;align-items:center;color:var(--txt);margin-bottom:8px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1px solid rgba(255,255,255,0.06);box-shadow:0 0 0 2px rgba(0,0,0,0.06) inset}
+.line-symbol{width:28px;height:6px;border-radius:4px;display:inline-block;box-shadow:0 1px 0 rgba(0,0,0,0.25) inset;border:1px solid rgba(255,255,255,0.03)}
+
+.tabs{display:flex;border-bottom:1px solid rgba(255,255,255,0.03)}
+.tab{flex:1;padding:10px;text-align:center;color:var(--muted);font-weight:800;cursor:pointer;font-size:11px}
+.tab.active{color:var(--accent);border-bottom:3px solid var(--accent)}
+.tc{padding:14px;display:none;overflow:auto;height:calc(100% - 44px)}
+.tc.active{display:block}
+.card{background:rgba(3,8,5,0.7);border:1px solid rgba(255,255,255,0.02);padding:12px;border-radius:10px;margin-bottom:12px}
+.card h4{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:12px}
+.kgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.k{background:transparent;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.02);text-align:center}
+.k .v{font-family:var(--mono);font-size:18px;color:var(--accent);font-weight:800}
+.k .l{font-size:11px;color:var(--muted);margin-top:6px}
+
+.max-dist-card{text-align:center;padding:16px 0}
+.max-dist-val{font-family:var(--mono);font-size:36px;color:var(--accent);font-weight:800;line-height:1}
+.max-dist-unit{font-size:12px;color:var(--muted);margin-top:4px}
+.max-dist-name{font-size:13px;color:var(--txt);margin-top:10px;font-weight:600}
+.max-dist-date{font-size:12px;color:var(--muted);margin-top:4px}
+
+/* Heatmap controls */
+.heat-controls{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.heat-controls label{font-size:11px;color:var(--muted);font-weight:700}
+.heat-controls input[type=range]{accent-color:var(--accent);width:100px}
+.heat-controls span{font-family:var(--mono);font-size:12px;color:var(--accent);min-width:28px}
+
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column}
+.spin{width:40px;height:40px;border:3px solid rgba(255,255,255,0.03);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading p{color:var(--muted);margin-top:12px}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spin"></div><p>Montando dashboard...</p></div>
+
+<header>
+  <div class="h-left">
+    <div class="logo" title="Atividades">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 21c0-1.1.9-2 2-2h4v2H5a1 1 0 0 1-1-1z" fill="#9AE66E"/>
+        <path d="M20.7 13.35c.2.34.28.74.24 1.13-.19 1.75-1.27 3.45-3.18 4.03-1.1.36-2.24.06-3.1-.62-.84-.67-1.58-1.77-1.58-1.77l1.45-1.05s.54 1.04 1.23 1.43c.38.23.86.33 1.33.25.8-.13 1.41-.8 1.6-1.58.11-.48-.04-.98-.37-1.35l-2.67-2.73-2.3 1.65-1.9-3.12 4.77-3.55 2.18 2.96 1.27 1.48z" fill="#4ADE80"/>
+        <circle cx="7.5" cy="6.5" r="1.6" fill="#10B981"/>
+      </svg>
+    </div>
+    <div>
+      <h1>Painel de Monitoramento de Atividades (Strava)</h1>
+      <p>Dados carregados do arquivo de atividades</p>
+    </div>
+  </div>
+
+  <div class="h-kpis">
+    <div class="h-kpi"><div class="v" id="hdr-total">—</div><div class="l">Registros</div></div>
+    <div class="h-kpi"><div class="v" id="hdr-dist">—</div><div class="l">Distância (km)</div></div>
+    <div class="h-kpi"><div class="v" id="hdr-moving">—</div><div class="l">Tempo moviment. (h)</div></div>
+  </div>
+</header>
+
+<div id="main">
+  <div id="map-wrap">
+    <div id="filter">
+      <form id="filterForm" method="GET" style="display:flex;gap:12px;align-items:center">
+        <div>
+          <div class="flt-label">Atividades</div>
+          <select name="type" id="eventFilter" class="flt-select">
+            <option value="">Todas as Atividades</option>
+            {% for ev in tipos_evento %}
+              <option value="{{ ev }}" {% if ev == selected_type %}selected{% endif %}>{{ ev }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <div class="flt-label">Ano</div>
+          <select name="year" id="yearFilter" class="flt-select">
+            <option value="">Todos os anos</option>
+            {% for y in anos %}
+              <option value="{{ y }}" {% if y|string == selected_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <div class="flt-label">Mês</div>
+          {% set month_names_pt = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"] %}
+          <select name="month" id="monthFilter" class="flt-select">
+            <option value="">Todos os meses</option>
+            {% for m in meses %}
+              {% set idx = m - 1 %}
+              <option value="{{ m }}" {% if m|string == selected_month %}selected{% endif %}>{{ month_names_pt[idx] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <div class="flt-label">Estado</div>
+          <select name="estado" id="estadoFilter" class="flt-select">
+            <option value="">Todos os estados</option>
+            {% for e in estados %}
+              <option value="{{ e }}" {% if e == selected_estado %}selected{% endif %}>{{ e }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <div class="flt-label">Município</div>
+          <select name="municipio" id="municipioFilter" class="flt-select">
+            <option value="">Todos os municípios</option>
+            {% for m in municipios %}
+              <option value="{{ m }}" {% if m == selected_municipio %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+      </form>
+      <button id="clearBtn" class="bm" style="margin-left:8px">Limpar</button>
+    </div>
+
+    <!-- Botões na VERTICAL -->
+    <div id="basemap">
+      <div class="bm active" id="btn-osm">MAPA</div>
+      <div class="bm" id="btn-sat">SATÉLITE</div>
+      <div class="bm" id="btn-heat">CALOR</div>
+    </div>
+
+    <div id="map"></div>
+
+    <div id="legend">
+      <div class="lh">LEGENDA</div>
+      <div id="leg-list"></div>
+    </div>
+  </div>
+
+  <div id="panel">
+    <div class="tabs">
+      <div class="tab active" data-tab="visao">VISÃO</div>
+      <div class="tab" data-tab="indicadores">INDICADORES</div>
+      <div class="tab" data-tab="energia">ENERGIA</div>
+      <div class="tab" data-tab="distancias">DISTÂNCIAS</div>
+    </div>
+
+    <!-- ABA VISÃO -->
+    <div id="tc-visao" class="tc active">
+      <div class="card">
+        <h4>Estatísticas Gerais</h4>
+        <div class="kgrid">
+          <div class="k"><div class="v" id="k-total">—</div><div class="l">Registros</div></div>
+          <div class="k"><div class="v" id="k-dist">—</div><div class="l">Distância (km)</div></div>
+          <div class="k"><div class="v" id="k-moving">—</div><div class="l">Tempo moviment. (h)</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>Distância por Mês</h4>
+        <div style="height:260px"><canvas id="chart-evento"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ABA INDICADORES -->
+    <div id="tc-indicadores" class="tc">
+      <div class="card">
+        <h4>Velocidade Média (Pace)</h4>
+        <div style="display:flex;align-items:center;justify-content:center;height:90px">
+          <div style="text-align:center">
+            <div id="avg-pace" class="v" style="font-size:28px;line-height:1.1">—</div>
+            <div class="l" style="margin-top:6px">min / km</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>Frequência Cardíaca (média)</h4>
+        <div style="display:flex;align-items:center;justify-content:center;height:90px">
+          <div style="text-align:center">
+            <div id="avg-hr" class="v" style="font-size:28px;line-height:1.1">—</div>
+            <div class="l" style="margin-top:6px">bpm</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>Média / Dia</h4>
+        <div style="display:flex;align-items:center;justify-content:center;height:90px">
+          <div style="text-align:center">
+            <div id="avg-daily" class="v" style="font-size:28px;line-height:1.1">—</div>
+            <div class="l" style="margin-top:6px">km (média diária)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>Duração Média</h4>
+        <div style="display:flex;align-items:center;justify-content:center;height:90px">
+          <div style="text-align:center">
+            <div id="avg-duration" class="v" style="font-size:28px;line-height:1.1">—</div>
+            <div class="l" style="margin-top:6px">min (média)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA ENERGIA -->
+    <div id="tc-energia" class="tc">
+      <div class="card">
+        <h4>Energia (Kcal)</h4>
+        <div style="display:flex;align-items:center;justify-content:center;height:120px">
+          <div style="text-align:center">
+            <div id="total-kcal" class="v" style="font-size:28px;line-height:1.1">—</div>
+            <div class="l" style="margin-top:6px">Kcal (soma)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>Detalhe kilojoules (raw)</h4>
+        <div style="display:flex;align-items:center;justify-content:center;height:90px">
+          <div style="text-align:center">
+            <div id="total-kj" class="v" style="font-size:20px;line-height:1.1">—</div>
+            <div class="l" style="margin-top:6px">kJ (soma)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA DISTÂNCIAS -->
+    <div id="tc-distancias" class="tc">
+      <div class="card">
+        <h4>Somatório por Categoria de Distância</h4>
+        <div style="height:260px"><canvas id="chart-distancias"></canvas></div>
+        <div id="dist-info" style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;line-height:1.8"></div>
+      </div>
+
+      <div class="card">
+        <h4>🏆 Maior Distância Registrada</h4>
+        <div class="max-dist-card">
+          <div class="max-dist-val" id="max-dist-val">—</div>
+          <div class="max-dist-unit">km</div>
+          <div class="max-dist-name" id="max-dist-name">—</div>
+          <div class="max-dist-date" id="max-dist-date">—</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* dados injetados pelo Flask */
+const stats = {{ stats|default({}, true)|tojson }};
+const points = {{ points|default([], true)|tojson }};
+const polylines = {{ polylines|default([], true)|tojson }};
+const tipos_evento = {{ tipos_evento|default([], true)|tojson }};
+const selected_type = {{ selected_type|default('', true)|tojson }};
+const TOTAL_ACTIVITIES = {{ total_activities|default(0) }};
+const TOTAL_DISTANCE_KM = {{ total_distance_km|default(0.0) }};
+const TOTAL_MOVING_HOURS = {{ total_moving_hours|default(0.0) }};
+const AVG_SPEED_OVERALL_KMH = {{ avg_speed_overall_kmh|default(0.0) }};
+const TOTAL_KILOJOULES = {{ total_kilojoules|default(0.0) }};
+const AVG_PACE_MIN = {{ avg_pace_minutes|default(0)|int }};
+const AVG_PACE_SEC = {{ avg_pace_seconds|default(0)|int }};
+const AVG_HEARTRATE = {{ avg_heartrate|default(0.0) }};
+const AVG_DAILY_DISTANCE_KM = {{ avg_daily_distance_km|default(0.0) }};
+const AVG_MOVING_TIME_MIN = {{ avg_moving_time_min|default(0.0) }};
+const YEARS = {{ anos|default([], true)|tojson }};
+const MONTHS = {{ meses|default([], true)|tojson }};
+const SELECTED_ESTADO = {{ selected_estado|default('', true)|tojson }};
+const SELECTED_MUNICIPIO = {{ selected_municipio|default('', true)|tojson }};
+
+const DIST_GROUP_SUM   = {{ dist_group_sum|default({}, true)|tojson }};
+const DIST_GROUP_COUNT = {{ dist_group_count|default({}, true)|tojson }};
+const MAX_DIST_KM   = {{ max_dist_km|default(0.0) }};
+const MAX_DIST_DATE = {{ max_dist_date|default('', true)|tojson }};
+const MAX_DIST_NAME = {{ max_dist_name|default('', true)|tojson }};
+
+const PALETTE = ['#FF4D4D','#FFB020','#FFE84D','#54D169','#3b82f6','#B38CFF','#FF6AD5','#00D1B2','#9AE66E','#FF8A5B'];
+const colorMap = {};
+
+function colorForKey(key, context){
+  if(!key && key !== 0) return '#9999';
+  const k = String(key).trim();
+  if(context === 'pavimentacao'){
+    const low = k.toLowerCase();
+    if(low.includes('asfalto')) return '#3b82f6';
+    if(low.includes('não') || low.includes('nao')) return '#ef4444';
+    if(!colorMap['pav_'+k]) colorMap['pav_'+k] = PALETTE[Object.keys(colorMap).length % PALETTE.length];
+    return colorMap['pav_'+k];
+  }
+  if(!colorMap[k]) colorMap[k] = PALETTE[Object.keys(colorMap).length % PALETTE.length];
+  return colorMap[k];
+}
+
+function el(id){ return document.getElementById(id); }
+function fmtDec(v){ if(v===null||v===undefined||v==='') return '—'; return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}); }
+function fmtInt(v){ if(v===null||v===undefined||v==='') return '—'; return Math.round(Number(v)).toLocaleString('pt-BR'); }
+
+let map, osmLayer, satLayer, markerLayer, polylineLayer, heatLayer;
+let charts = {};
+let currentMapMode = 'osm'; // 'osm' | 'sat' | 'heat'
+
+function initMap(){
+  map = L.map('map', { zoomControl: true });
+  osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
+  satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom:19 });
+  markerLayer = L.layerGroup().addTo(map);
+  polylineLayer = L.layerGroup().addTo(map);
+  map.setView([-1.24, -47.58], 12);
+  setTimeout(()=>map.invalidateSize(),150);
+}
+
+/* ---- HEATMAP ---- */
+function buildHeatData(){
+  const heatPoints = [];
+
+  // Usa todos os pontos das polylines (maior densidade)
+  for(const line of polylines){
+    const coords = Array.isArray(line.coords) ? line.coords : [];
+    for(const c of coords){
+      const lat = Number(c[0]), lng = Number(c[1]);
+      if(Number.isFinite(lat) && Number.isFinite(lng)){
+        heatPoints.push([lat, lng, 1]);
+      }
+    }
+  }
+
+  // Fallback: usa points se não houver polylines
+  if(heatPoints.length === 0){
+    for(const p of points){
+      const lat = Number(p.latitude), lng = Number(p.longitude);
+      if(Number.isFinite(lat) && Number.isFinite(lng)){
+        heatPoints.push([lat, lng, 1]);
+      }
+    }
+  }
+
+  return heatPoints;
+}
+
+function showHeatmap(){
+  // Remove camadas de tile anteriores
+  if(map.hasLayer(osmLayer)) map.removeLayer(osmLayer);
+  if(map.hasLayer(satLayer)) map.removeLayer(satLayer);
+
+  // Adiciona tile escuro como base para o heatmap
+  if(!map._heatBaseTile){
+    map._heatBaseTile = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      { maxZoom:19, attribution:'©CartoDB' }
+    );
+  }
+  map._heatBaseTile.addTo(map);
+
+  // Oculta polylines e markers para não poluir
+  markerLayer.clearLayers();
+  polylineLayer.clearLayers();
+
+  // Cria/recria heatLayer
+  if(heatLayer && map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
+
+  const heatData = buildHeatData();
+  if(heatData.length === 0){
+    console.warn('Sem dados para heatmap');
+    return;
+  }
+
+  heatLayer = L.heatLayer(heatData, {
+    radius: 18,
+    blur: 22,
+    maxZoom: 17,
+    max: 1.0,
+    gradient: {
+      0.0: '#000080',
+      0.2: '#0000ff',
+      0.4: '#00ffff',
+      0.6: '#00ff00',
+      0.8: '#ffff00',
+      1.0: '#ff0000'
+    }
+  }).addTo(map);
+
+  currentMapMode = 'heat';
+}
+
+function hideHeatmap(){
+  if(heatLayer && map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
+  if(map._heatBaseTile && map.hasLayer(map._heatBaseTile)) map.removeLayer(map._heatBaseTile);
+  // Restaura markers e polylines
+  renderMarkers();
+  renderPolylines();
+}
+
+/* ---- fim HEATMAP ---- */
+
+function populateKPIs(){
+  el('hdr-total').textContent = fmtInt(TOTAL_ACTIVITIES || stats.total || 0);
+  el('hdr-dist').textContent = TOTAL_DISTANCE_KM ? fmtDec(TOTAL_DISTANCE_KM) : (stats.avg_distance ? fmtDec(stats.avg_distance) : '—');
+  el('hdr-moving').textContent = TOTAL_MOVING_HOURS ? fmtDec(TOTAL_MOVING_HOURS) : '—';
+
+  el('k-total').textContent = fmtInt(TOTAL_ACTIVITIES || stats.total || 0);
+  el('k-dist').textContent = TOTAL_DISTANCE_KM ? fmtDec(TOTAL_DISTANCE_KM) : (stats.avg_distance ? fmtDec(stats.avg_distance) : '—');
+  el('k-moving').textContent = TOTAL_MOVING_HOURS ? fmtDec(TOTAL_MOVING_HOURS) : '—';
+
+  const paceMin = Number(AVG_PACE_MIN || stats.avg_pace_minutes || 0);
+  const paceSec = Number(AVG_PACE_SEC || stats.avg_pace_seconds || 0);
+  el('avg-pace').textContent = (paceMin>0 || paceSec>0) ? (String(paceMin).padStart(2,'0') + ':' + String(paceSec).padStart(2,'0')) : '—';
+  el('avg-hr').textContent = (AVG_HEARTRATE || stats.avg_heartrate) ? Math.round(AVG_HEARTRATE || stats.avg_heartrate) : '—';
+
+  const avgDaily = (typeof AVG_DAILY_DISTANCE_KM !== 'undefined' && AVG_DAILY_DISTANCE_KM !== null) ? Number(AVG_DAILY_DISTANCE_KM) : Number(stats.avg_daily_distance_km || 0);
+  el('avg-daily').textContent = Number.isFinite(avgDaily) ? fmtDec(avgDaily) : '—';
+
+  const avgDur = (typeof AVG_MOVING_TIME_MIN !== 'undefined' && AVG_MOVING_TIME_MIN !== null) ? Number(AVG_MOVING_TIME_MIN) : Number(stats.avg_moving_time_min || 0);
+  el('avg-duration').textContent = Number.isFinite(avgDur) ? fmtDec(avgDur) : '—';
+
+  const totalKJ = Number(TOTAL_KILOJOULES || stats.total_kilojoules || 0);
+  const totalKcal = totalKJ / 4.184;
+  el('total-kj').textContent = (Number.isFinite(totalKJ) && totalKJ>0) ? fmtDec(totalKJ) : (totalKJ===0 ? '0,0' : '—');
+  el('total-kcal').textContent = (Number.isFinite(totalKcal) && totalKcal>0) ? fmtDec(totalKcal) : (totalKcal===0 ? '0,0' : '—');
+}
+
+function buildLegend(){
+  const wrap = el('leg-list'); wrap.innerHTML = '';
+
+  const addLineRow = (label, color) => {
+    const d = document.createElement('div'); d.className = 'leg';
+    d.innerHTML = `<div class="line-symbol" style="background:${color};"></div><div style="flex:1">${label}</div>`;
+    wrap.appendChild(d);
+  };
+  const addCircleRow = (label, color) => {
+    const d = document.createElement('div'); d.className = 'leg';
+    d.innerHTML = `<div class="dot" style="background:${color};"></div><div style="flex:1">${label}</div>`;
+    wrap.appendChild(d);
+  };
+
+  addLineRow('Run', '#FF4D4D');
+  addLineRow('Walk', '#3b82f6');
+  addCircleRow('Início (ponto)', '#10B981');
+  addCircleRow('Fim (ponto)', '#3b82f6');
+
+  const sep = document.createElement('div'); sep.style.height='6px'; wrap.appendChild(sep);
+
+  const labels = Object.keys(stats.activities_by_type || {});
+  if(labels.length){
+    labels.forEach(l => {
+      const d = document.createElement('div'); d.className = 'leg';
+      const color = colorForKey(l);
+      d.innerHTML = `<div class="dot" style="background:${color};"></div><div style="flex:1">${l}</div><div style="font-family:var(--mono);color:var(--muted)">${stats.activities_by_type[l]}</div>`;
+      wrap.appendChild(d);
+    });
+  } else {
+    const none = document.createElement('div'); none.style.color='var(--muted)'; none.textContent='Nenhum tipo disponível';
+    wrap.appendChild(none);
+  }
+}
+
+function renderMarkers(){
+  markerLayer.clearLayers();
+  const bounds = [];
+  for(const p of points){
+    const lat = Number(p.latitude), lng = Number(p.longitude);
+    if(Number.isFinite(lat) && Number.isFinite(lng)){
+      const tipo = p.type || 'Unknown';
+      const color = colorForKey(tipo);
+      const m = L.circleMarker([lat,lng], { radius:6, color:'#111', weight:1, fillColor: color, fillOpacity:0.95 });
+      const popup = `<div style="min-width:200px"><strong style="color:#bbf7d0">${tipo}</strong><br><small style="color:var(--muted)">${p.start_date||''}</small><div style="margin-top:6px">Dist: ${(p.distance_km||0).toLocaleString('pt-BR',{minimumFractionDigits:2})} km</div></div>`;
+      m.bindPopup(popup, { maxWidth:320 }).addTo(markerLayer);
+      bounds.push([lat,lng]);
+    }
+  }
+  if(bounds.length>1){ map.fitBounds(bounds, { padding:[40,40] }); }
+  else if(bounds.length===1){ map.setView(bounds[0], 15); }
+  else { map.setView([-1.24, -47.58], 14); }
+  setTimeout(()=>map.invalidateSize(),120);
+}
+
+function renderPolylines(){
+  polylineLayer.clearLayers();
+  const bounds = [];
+  if(!Array.isArray(polylines) || polylines.length === 0) return;
+
+  for(const line of polylines){
+    try{
+      const coords = Array.isArray(line.coords) ? line.coords : [];
+      const latlngs = coords.map(c => [Number(c[0]), Number(c[1])]).filter(c => Number.isFinite(c[0]) && Number.isFinite(c[1]));
+      if(latlngs.length < 2) continue;
+
+      const tipo = (line.type || line.name || 'Atividade');
+      const tipoLow = String(tipo).toLowerCase();
+      let lineColor = colorForKey(tipo);
+      if(tipoLow.includes('run') || tipoLow.includes('corrid')) lineColor = '#FF4D4D';
+      else if(tipoLow.includes('walk') || tipoLow.includes('caminh')) lineColor = '#3b82f6';
+
+      const layer = L.polyline(latlngs, { color: lineColor, weight: 3, opacity: 0.95 }).addTo(polylineLayer);
+
+      const popupParts = [];
+      if(line.name) popupParts.push(`<strong>${line.name}</strong>`);
+      if(line.type) popupParts.push(`<div>Tipo: ${line.type}</div>`);
+      if(line.distance_km !== undefined) popupParts.push(`<div>Dist: ${Number(line.distance_km).toLocaleString('pt-BR',{minimumFractionDigits:2})} km</div>`);
+      if(line.moving_time_hms) popupParts.push(`<div>Tempo: ${line.moving_time_hms}</div>`);
+      if(line.start_date) popupParts.push(`<div style="margin-top:6px;color:var(--muted)">${line.start_date}</div>`);
+      if(line.NM_UF || line.NM_MUN) popupParts.push(`<div style="margin-top:6px"><small style="color:var(--muted)">Local: ${line.NM_MUN||''}${line.NM_UF?(' - '+line.NM_UF):''}</small></div>`);
+
+      layer.bindPopup(`<div style="min-width:220px">${popupParts.join('')}</div>`, { maxWidth:360 });
+
+      const start = line.start_coord;
+      const end = line.end_coord;
+      if(start && Array.isArray(start) && start.length >= 2 && Number.isFinite(Number(start[0])) && Number.isFinite(Number(start[1]))){
+        const mStart = L.circleMarker([Number(start[0]), Number(start[1])], { radius:6, color:'#064e3b', weight:1, fillColor:'#10B981', fillOpacity:1 });
+        mStart.bindPopup(`<div><strong>Início</strong><div style="margin-top:6px">${line.name || ''}</div></div>`, { maxWidth:220 }).addTo(markerLayer);
+        bounds.push([Number(start[0]), Number(start[1])]);
+      }
+      if(end && Array.isArray(end) && end.length >= 2 && Number.isFinite(Number(end[0])) && Number.isFinite(Number(end[1]))){
+        const mEnd = L.circleMarker([Number(end[0]), Number(end[1])], { radius:6, color:'#0b4ea8', weight:1, fillColor:'#3b82f6', fillOpacity:1 });
+        mEnd.bindPopup(`<div><strong>Fim</strong><div style="margin-top:6px">${line.name || ''}</div></div>`, { maxWidth:220 }).addTo(markerLayer);
+        bounds.push([Number(end[0]), Number(end[1])]);
+      }
+
+      latlngs.forEach(ll => bounds.push(ll));
+    }catch(e){
+      console.warn('erro ao desenhar polyline', e);
+    }
+  }
+
+  if(bounds.length > 1){ map.fitBounds(bounds, { padding:[40,40] }); }
+  setTimeout(()=>map.invalidateSize(),120);
+}
+
+function destroyChart(c){ if(c && c.destroy) c.destroy(); }
+
+function renderEventoChart(){
+  destroyChart(charts.evento);
+  const distanceByMonth = stats.distance_by_month || {};
+  const englishMonths = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const ptShort = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  const values = englishMonths.map(m => Number(distanceByMonth[m] || 0));
+
+  charts.evento = new Chart(el('chart-evento').getContext('2d'), {
+    type:'bar',
+    data:{
+      labels: ptShort,
+      datasets:[{
+        label: 'Distância (km)',
+        data: values,
+        backgroundColor: ptShort.map((l,i) => PALETTE[i % PALETTE.length])
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{ y:{ beginAtZero:true, title:{ display:true, text:'Km' } } },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ callbacks:{ label: ctx => (ctx.parsed.y||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' km' } }
+      }
+    }
+  });
+}
+
+function renderDistanciasChart(){
+  destroyChart(charts.distancias);
+
+  const labels = ['Até 5,0 km', 'De 5 a 10 km', 'Acima de 10 km'];
+  const sums   = labels.map(l => Number(DIST_GROUP_SUM[l]  || 0));
+  const counts = labels.map(l => Number(DIST_GROUP_COUNT[l] || 0));
+  const colors = ['#4ade80', '#FFB020', '#FF4D4D'];
+
+  charts.distancias = new Chart(el('chart-distancias').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Distância total (km)',
+        data: sums,
+        backgroundColor: colors,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { y: { beginAtZero: true, title: { display: true, text: 'Km' } } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => (ctx.parsed.y||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' km',
+            afterLabel: ctx => `Atividades: ${counts[ctx.dataIndex]}`
+          }
+        }
+      }
+    }
+  });
+
+  const totalCount = counts.reduce((a, b) => a + b, 0);
+  el('dist-info').innerHTML =
+    labels.map((l, i) => `<span style="color:${colors[i]};font-weight:700">${l}</span>: ${counts[i]} ativ.`).join(' &nbsp;|&nbsp; ') +
+    `<br><span style="color:var(--txt)">Total com distância registrada: <strong>${totalCount}</strong></span>`;
+
+  el('max-dist-val').textContent  = (MAX_DIST_KM && MAX_DIST_KM > 0) ? fmtDec(MAX_DIST_KM) : '—';
+  el('max-dist-name').textContent = MAX_DIST_NAME || '—';
+  el('max-dist-date').textContent = MAX_DIST_DATE || '—';
+}
+
+function renderAll(){
+  populateKPIs();
+  buildLegend();
+  renderEventoChart();
+  renderMarkers();
+  renderPolylines();
+}
+
+/* filtros dependentes */
+function populateSelect(selectEl, options, currentValue, placeholder) {
+  const prev = currentValue || selectEl.value;
+  selectEl.innerHTML = `<option value="">${placeholder}</option>`;
+  options.forEach(opt => {
+    const o = document.createElement('option');
+    o.value = opt;
+    o.textContent = opt;
+    if(opt === prev) o.selected = true;
+    selectEl.appendChild(o);
+  });
+}
+
+async function updateDependentFilters(resetMunicipio = false) {
+  const type   = el('eventFilter').value;
+  const year   = el('yearFilter').value;
+  const month  = el('monthFilter').value;
+  const estado = el('estadoFilter').value;
+
+  const estadoSel    = el('estadoFilter');
+  const municipioSel = el('municipioFilter');
+
+  estadoSel.classList.add('loading');
+  municipioSel.classList.add('loading');
+
+  try {
+    const params = new URLSearchParams();
+    if(type)   params.set('type', type);
+    if(year)   params.set('year', year);
+    if(month)  params.set('month', month);
+    if(estado) params.set('estado', estado);
+
+    const resp = await fetch(`/api/filter-options?${params.toString()}`);
+    if(!resp.ok) throw new Error('Erro na API');
+    const data = await resp.json();
+
+    populateSelect(estadoSel, data.estados || [], estado, 'Todos os estados');
+    const munAtual = resetMunicipio ? '' : el('municipioFilter').value;
+    populateSelect(municipioSel, data.municipios || [], munAtual, 'Todos os municípios');
+
+  } catch(e) {
+    console.warn('Erro ao buscar opções de filtro:', e);
+  } finally {
+    estadoSel.classList.remove('loading');
+    municipioSel.classList.remove('loading');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  try{
+    initMap();
+    renderAll();
+    el('loading').style.display = 'none';
+
+    const form = el('filterForm');
+
+    ['eventFilter', 'yearFilter', 'monthFilter'].forEach(id => {
+      el(id).addEventListener('change', async () => {
+        await updateDependentFilters(true);
+        form.submit();
+      });
+    });
+
+    el('estadoFilter').addEventListener('change', async () => {
+      await updateDependentFilters(false);
+      form.submit();
+    });
+
+    el('municipioFilter').addEventListener('change', () => form.submit());
+
+    el('clearBtn').addEventListener('click', () => {
+      el('eventFilter').value     = '';
+      el('yearFilter').value      = '';
+      el('monthFilter').value     = '';
+      el('estadoFilter').value    = '';
+      el('municipioFilter').value = '';
+      form.submit();
+    });
+
+    /* Controles de mapa */
+    el('btn-osm').addEventListener('click', ()=>{
+      if(currentMapMode === 'heat') hideHeatmap();
+      if(map.hasLayer(satLayer)) map.removeLayer(satLayer);
+      if(!map.hasLayer(osmLayer)) osmLayer.addTo(map);
+      el('btn-osm').classList.add('active');
+      el('btn-sat').classList.remove('active');
+      el('btn-heat').classList.remove('active');
+      currentMapMode = 'osm';
+    });
+
+    el('btn-sat').addEventListener('click', ()=>{
+      if(currentMapMode === 'heat') hideHeatmap();
+      if(map.hasLayer(osmLayer)) map.removeLayer(osmLayer);
+      if(!map.hasLayer(satLayer)) satLayer.addTo(map);
+      el('btn-sat').classList.add('active');
+      el('btn-osm').classList.remove('active');
+      el('btn-heat').classList.remove('active');
+      currentMapMode = 'sat';
+    });
+
+    el('btn-heat').addEventListener('click', ()=>{
+      el('btn-heat').classList.add('active');
+      el('btn-osm').classList.remove('active');
+      el('btn-sat').classList.remove('active');
+      showHeatmap();
+    });
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('.tc').forEach(c => c.classList.remove('active'));
+        const panel = el('tc-' + tab.dataset.tab);
+        if(panel) panel.classList.add('active');
+
+        if(tab.dataset.tab === 'distancias'){
+          setTimeout(() => { renderDistanciasChart(); }, 50);
+        }
+      });
+    });
+
+  }catch(err){
+    console.error(err);
+    el('loading').style.display = 'none';
+  }
+});
+</script>
+</body>
+</html>
