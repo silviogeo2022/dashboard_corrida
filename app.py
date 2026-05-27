@@ -37,7 +37,7 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # dev only
 
 CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
 CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI", "http://127.0.0.1:5000/callback")
+REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI", "https://monitoramento-atividades-strava.onrender.com/callback")
 
 SCOPES = ["profile:read_all", "activity:read_all", "read"]
 AUTH_BASE_URL = "https://www.strava.com/oauth/authorize"
