@@ -1,9 +1,9 @@
-Flask
+flask
+gunicorn
 pandas
 numpy
 polyline
-python-dotenv
 requests-oauthlib
+python-dotenv
 geopandas
 shapely
-openpyxl
