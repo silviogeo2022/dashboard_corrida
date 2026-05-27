@@ -1,0 +1,9 @@
+Flask
+pandas
+numpy
+polyline
+python-dotenv
+requests-oauthlib
+geopandas
+shapely
+openpyxl
