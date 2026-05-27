@@ -1,8 +1,5 @@
-<<<<<<< HEAD
 flask
-=======
 Flask
->>>>>>> 5b29c34f8124432cd074df56bf85fb276cd30116
 gunicorn
 pandas
 numpy
@@ -10,9 +7,6 @@ polyline
 requests-oauthlib
 python-dotenv
 geopandas
-<<<<<<< HEAD
 shapely
-=======
 shapely
 openpyxl
->>>>>>> 5b29c34f8124432cd074df56bf85fb276cd30116
